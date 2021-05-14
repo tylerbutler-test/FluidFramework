@@ -76,12 +76,20 @@ export class Interval implements ISerializableInterval {
     }
 
     public compare(b: Interval) {
-        const startResult = this.start - b.start;
+        const startResult = this.compareStart(b);
         if (startResult === 0) {
-            return (this.end - b.end);
+            return this.compareEnd(b);
         } else {
             return startResult;
         }
+    }
+
+    public compareStart(b: Interval) {
+        return this.start - b.start;
+    }
+
+    public compareEnd(b: Interval) {
+        return this.end - b.end;
     }
 
     public overlaps(b: Interval) {
@@ -138,12 +146,20 @@ export class SequenceInterval implements ISerializableInterval {
     }
 
     public compare(b: SequenceInterval) {
-        const startResult = this.start.compare(b.start);
+        const startResult = this.compareStart(b);
         if (startResult === 0) {
-            return (this.end.compare(b.end));
+            return this.compareEnd(b);
         } else {
             return startResult;
         }
+    }
+
+    public compareStart(b: SequenceInterval) {
+        return this.start.compare(b.start);
+    }
+
+    public compareEnd(b: SequenceInterval) {
+        return this.end.compare(b.end);
     }
 
     public overlaps(b: SequenceInterval) {
@@ -291,6 +307,100 @@ export class LocalIntervalCollection<TInterval extends ISerializableInterval> {
     public map(fn: (interval: TInterval) => void) {
         this.intervalTree.map(fn);
     }
+
+    public mapBackward(fn: (interval: TInterval) => void) {
+        this.intervalTree.mapBackward(fn);
+    }
+
+    public gatherAllWithStartPosForward(pos: number, results: TInterval[]) {
+        if (this.intervalTree.intervals.isEmpty()) {
+            return;
+        }
+        const transientInterval: TInterval = this.helpers.create(
+            "transient",
+            pos,
+            0,
+            this.client,
+            MergeTree.IntervalType.Transient,
+        );
+        const compareFn = (node: MergeTree.IntervalNode<TInterval>) => {
+            return transientInterval.compareStart(node.key);
+        };
+        const actionFn = (node: MergeTree.IntervalNode<TInterval>) => {
+            results.push(node.key);
+        };
+        const continueLeftFn = (cmpResult: number) => cmpResult <= 0;
+        const continueRightFn = (cmpResult: number) => cmpResult >= 0;
+        this.intervalTree.intervals.walkExactMatchesForward(compareFn, actionFn, continueLeftFn, continueRightFn);
+    }
+
+    public gatherAllWithEndPosForward(pos: number, results: TInterval[]) {
+        if (this.intervalTree.intervals.isEmpty()) {
+            return;
+        }
+        const transientInterval: TInterval = this.helpers.create(
+            "transient",
+            0,
+            pos,
+            this.client,
+            MergeTree.IntervalType.Transient,
+        );
+        const compareFn = (node: MergeTree.IntervalNode<TInterval>) => {
+            return transientInterval.compareEnd(node.key);
+        };
+        const actionFn = (node: MergeTree.IntervalNode<TInterval>) => {
+            results.push(node.key);
+        };
+        // Underlying intervals tree is not sorted by "end", so always search the left and right subtrees.
+        const continueLeftFn = (cmpResult: number) => true;
+        const continueRightFn = (cmpResult: number) => true;
+        this.intervalTree.intervals.walkExactMatchesForward(compareFn, actionFn, continueLeftFn, continueRightFn);
+    }
+
+    public gatherAllWithStartPosBackward(pos: number, results: TInterval[]) {
+        if (this.intervalTree.intervals.isEmpty()) {
+            return;
+        }
+        const transientInterval: TInterval = this.helpers.create(
+            "transient",
+            pos,
+            0,
+            this.client,
+            MergeTree.IntervalType.Transient,
+        );
+        const compareFn = (node: MergeTree.IntervalNode<TInterval>) => {
+            return transientInterval.compareStart(node.key);
+        };
+        const actionFn = (node: MergeTree.IntervalNode<TInterval>) => {
+            results.push(node.key);
+        };
+        const continueLeftFn = (cmpResult: number) => cmpResult <= 0;
+        const continueRightFn = (cmpResult: number) => cmpResult >= 0;
+        this.intervalTree.intervals.walkExactMatchesBackward(compareFn, actionFn, continueLeftFn, continueRightFn);
+    }
+
+    public gatherAllWithEndPosBackward(pos: number, results: TInterval[]) {
+        if (this.intervalTree.intervals.isEmpty()) {
+            return;
+        }
+        const transientInterval: TInterval = this.helpers.create(
+            "transient",
+            0,
+            pos,
+            this.client,
+            MergeTree.IntervalType.Transient,
+        );
+        const compareFn = (node: MergeTree.IntervalNode<TInterval>) => {
+            return transientInterval.compareEnd(node.key);
+        };
+        const actionFn = (node: MergeTree.IntervalNode<TInterval>) => {
+            results.push(node.key);
+        };
+        // Underlying intervals tree is not sorted by "end", so always search the left and right subtrees.
+        const continueLeftFn = (cmpResult: number) => true;
+        const continueRightFn = (cmpResult: number) => true;
+        this.intervalTree.intervals.walkExactMatchesBackward(compareFn, actionFn, continueLeftFn, continueRightFn);
+     }
 
     public findOverlappingIntervals(startPosition: number, endPosition: number) {
         if (!this.intervalTree.intervals.isEmpty()) {
@@ -552,6 +662,26 @@ export class IntervalCollectionView<TInterval extends ISerializableInterval> ext
         this.localCollection.map(fn);
     }
 
+    public mapBackward(fn: (interval: TInterval) => void) {
+        this.localCollection.mapBackward(fn);
+    }
+
+    public gatherAllWithStartPosForward(pos: number, results: TInterval[]) {
+        this.localCollection.gatherAllWithStartPosForward(pos, results);
+    }
+
+    public gatherAllWithStartPosBackward(pos: number, results: TInterval[]) {
+        this.localCollection.gatherAllWithStartPosBackward(pos, results);
+    }
+
+    public gatherAllWithEndPosForward(pos: number, results: TInterval[]) {
+        this.localCollection.gatherAllWithEndPosForward(pos, results);
+    }
+
+    public gatherAllWithEndPosBackward(pos: number, results: TInterval[]) {
+        this.localCollection.gatherAllWithEndPosBackward(pos, results);
+    }
+
     public previousInterval(pos: number): TInterval {
         return this.localCollection.previousInterval(pos);
     }
@@ -585,7 +715,7 @@ export class IntervalCollectionView<TInterval extends ISerializableInterval> ext
             start,
         };
 
-        this.addInternal(serializedInterval, true, undefined);
+        return this.addInternal(serializedInterval, true, undefined);
     }
 
     public delete(
@@ -627,7 +757,7 @@ export class IntervalCollectionView<TInterval extends ISerializableInterval> ext
 
         this.emit("addInterval", interval, local, op);
 
-        return this;
+        return interval;
     }
 
     public deleteInterval(serializedInterval: ISerializedInterval, local: boolean, op: ISequencedDocumentMessage) {
@@ -670,6 +800,61 @@ export class IntervalCollectionView<TInterval extends ISerializableInterval> ext
     }
 }
 
+export class IntervalCollectionIterator<TInterval extends ISerializableInterval> {
+    private readonly results: TInterval[];
+    private index: number;
+
+    constructor(
+        collection: IntervalCollection<TInterval>,
+        iteratesBackward: boolean = false,
+        hasStartPosition: boolean = false,
+        hasEndPosition: boolean = false,
+        pos?: number) {
+        this.results = [];
+        this.index = 0;
+
+        if (hasStartPosition) {
+            if (iteratesBackward) {
+                collection.gatherAllWithStartPosBackward(this.results, pos);
+            }
+            else {
+                collection.gatherAllWithStartPosForward(this.results, pos);
+            }
+        }
+        else if (hasEndPosition) {
+            if (iteratesBackward) {
+                collection.gatherAllWithEndPosBackward(this.results, pos);
+            }
+            else {
+                collection.gatherAllWithEndPosForward(this.results, pos);
+            }
+        }
+        else {
+            if (iteratesBackward) {
+                collection.gatherAllBackward(this.results);
+            }
+            else {
+                collection.gatherAllForward(this.results);
+            }
+        }
+    }
+
+    public next() {
+        let _value: TInterval | undefined;
+        let _done: boolean = true;
+
+        if (this.index < this.results.length) {
+            _value = this.results[this.index++];
+            _done = false;
+        }
+
+        return {
+            value: _value,
+            done: _done,
+        };
+    }
+}
+
 export class IntervalCollection<TInterval extends ISerializableInterval> {
     private savedSerializedIntervals?: ISerializedInterval[];
     private view: IntervalCollectionView<TInterval>;
@@ -708,7 +893,7 @@ export class IntervalCollection<TInterval extends ISerializableInterval> {
             throw new Error("attach must be called prior to adding intervals");
         }
 
-        this.view.add(startPosition, endPosition, intervalType, props);
+        return this.view.add(startPosition, endPosition, intervalType, props);
     }
 
     public delete(
@@ -767,5 +952,82 @@ export class IntervalCollection<TInterval extends ISerializableInterval> {
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         return this.view.serializeInternal();
+    }
+
+    public [Symbol.iterator](): IntervalCollectionIterator<TInterval> {
+        const iterator = new IntervalCollectionIterator<TInterval>(this);
+        return iterator;
+    }
+
+    public CreateForwardIteratorWithStartPosition(startPosition: number): IntervalCollectionIterator<TInterval> {
+        const iterator = new IntervalCollectionIterator<TInterval>(this, false, true, false, startPosition);
+        return iterator;
+    }
+
+    public CreateBackwardIteratorWithStartPosition(startPosition: number): IntervalCollectionIterator<TInterval> {
+        const iterator = new IntervalCollectionIterator<TInterval>(this, true, true, false, startPosition);
+        return iterator;
+    }
+
+    public CreateForwardIteratorWithEndPosition(endPosition: number): IntervalCollectionIterator<TInterval> {
+        const iterator = new IntervalCollectionIterator<TInterval>(this, false, false, true, endPosition);
+        return iterator;
+    }
+
+    public CreateBackwardIteratorWithEndPosition(endPosition: number): IntervalCollectionIterator<TInterval> {
+        const iterator = new IntervalCollectionIterator<TInterval>(this, true, false, true, endPosition);
+        return iterator;
+    }
+
+    public gatherAllForward(results: TInterval[]) {
+        if (!this.view) {
+            return;
+        }
+
+        this.view.map((interval: TInterval) => {
+            results.push(interval);
+        });
+    }
+
+    public gatherAllBackward(results: TInterval[]) {
+        if (!this.view) {
+            return;
+        }
+
+        this.view.mapBackward((interval: TInterval) => {
+            results.push(interval);
+        });
+    }
+
+    public gatherAllWithStartPosForward(results: TInterval[], pos: number) {
+        if (!this.view) {
+            return;
+        }
+
+        this.view.gatherAllWithStartPosForward(pos, results);
+    }
+
+    public gatherAllWithStartPosBackward(results: TInterval[], pos: number) {
+        if (!this.view) {
+            return;
+        }
+
+        this.view.gatherAllWithStartPosBackward(pos, results);
+    }
+
+    public gatherAllWithEndPosForward(results: TInterval[], pos: number) {
+        if (!this.view) {
+            return;
+        }
+
+        this.view.gatherAllWithEndPosForward(pos, results);
+    }
+
+    public gatherAllWithEndPosBackward(results: TInterval[], pos: number) {
+        if (!this.view) {
+            return;
+        }
+
+        this.view.gatherAllWithEndPosBackward(pos, results);
     }
 }
